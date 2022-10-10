@@ -1,0 +1,1 @@
+HOROVOD_CACHE_CAPACITY=4096 python train.py --config ./config/train-whos-waldo.json

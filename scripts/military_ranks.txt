@@ -1,0 +1,6 @@
+Pvt.	Private
+Pfc.	Private First Class
+Spc.	Specialist
+Cpl.	Corporal
+Sgt.	Sergeant
+Gen.	General
