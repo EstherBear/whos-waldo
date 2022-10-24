@@ -10,10 +10,10 @@ from nltk import word_tokenize
 
 data_dir = '/work/vig/qianrul/whos-waldo/whos_waldo'
 split = 'test'
-srl_dir = f'/work/vig/qianrul/whos-waldo/srl/bert-srl-flair-full/{split}'
+srl_dir = f'/work/vig/qianrul/whos-waldo/srl-triplet/bert-srl-flair-full/{split}'
 splits_dir = '/work/vig/qianrul/tofindwaldo/dataset_meta/splits'
 
-id = '003159'
+id = '018539'
 
 def read_txt(txt_file):
     items = []
@@ -26,7 +26,7 @@ def read_json(json_path):
     f = json.load(open(json_path, 'r', encoding='utf-8'))
     return f
 
-output_path = f'/work/vig/qianrul/whos-waldo/scripts/tmp/srl/bert-srl-flair/{split}'
+output_path = f'/work/vig/qianrul/whos-waldo/scripts/tmp/srl/bert-srl-flair-full/{split}'
 if not os.path.exists(output_path):
     os.mkdir(output_path)
 colors = list(mcolors.CSS4_COLORS.keys())
@@ -78,7 +78,7 @@ plt.close('all')
 print(caption)
 print(corefs)
 print(srl)
-
+print(gt)
 # # Max corefs number.
 # meta_dir = '/work/vig/qianrul/tofindwaldo/dataset_meta'
 # splits_dir = os.path.join(meta_dir, 'splits')

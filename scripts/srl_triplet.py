@@ -2,9 +2,11 @@ import os
 import json
 from tqdm import tqdm
 import numpy as np
+from word_forms.word_forms import get_word_forms
+from word_forms.lemmatizer import lemmatize
 
-input_dir = '/work/vig/qianrul/whos-waldo/bert-srl'
-output_dir = '/work/vig/qianrul/whos-waldo/srl-triplet/bert-srl'
+input_dir = '/work/vig/qianrul/whos-waldo/srl/bert-srl-flair-full'
+output_dir = '/work/vig/qianrul/whos-waldo/srl-triplet/bert-srl-flair-full'
 splits_dir = '/work/vig/qianrul/tofindwaldo/dataset_meta/splits'
 
 def read_txt(txt_file):
@@ -18,9 +20,18 @@ def read_json(json_path):
     f = json.load(open(json_path, 'r', encoding='utf-8'))
     return f
 
-# triplet: ([sub_id], verb, [obj_id])
+def get_ing(verb: str) -> str:
+    verb_forms = get_word_forms(verb)['v']
+    for verb_form in verb_forms:
+        if verb_form[-3:] == 'ing':
+            return verb_form
+    return verb
 
-for split in ['train', 'val', 'test']:
+if not os.path.exists(output_dir):
+    os.mkdir(output_dir)
+
+# triplet: ([sub_id], verb, [obj_id])
+for split in ['val', 'test', 'train']:
     ids = read_txt(os.path.join(splits_dir, f'{split}.txt'))
     input_split_dir = os.path.join(input_dir, split)
     output_path = os.path.join(output_dir, split)
@@ -45,7 +56,7 @@ for split in ['train', 'val', 'test']:
                                 obj.append(coref_id)
                 if len(sub) == 0 and len(obj) == 0:
                     continue
-                triplets.append(([*set(sub)], verb, [*set(obj)]))
+                triplets.append(([*set(sub)], get_ing(verb), [*set(obj)]))
         srl['triplets'] = triplets
         output_file = os.path.join(output_path, f'{id}.json')
         with open(output_file, "w") as f:
