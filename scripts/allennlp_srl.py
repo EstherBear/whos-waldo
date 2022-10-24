@@ -149,10 +149,9 @@ for split in ['train', 'val', 'test']:
             labels = [label.value for label in flairSentence.labels]
             tokens = [token.text for token in flairSentence]
             result = predictor.predict_tokenized(tokenized_sentence=tokens, labels=labels)
-            srl_results.append(result) 
+            srl_results.append(result)
         results['srl_results'] = srl_results
         results['names_index'] = get_name_index(srl_results, selected_names, name_masks, corefs, id)
         results['selected_names'] = selected_names.tolist()
         with open(output_file, "w") as f:
             json.dump(results, f)
-        
