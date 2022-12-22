@@ -26,6 +26,7 @@ class WhosWaldo(UniterPreTrainedModel):
     def __init__(self, config, img_dim):
         super().__init__(config, img_dim)
         self.uniter = UniterModel(config, img_dim)
+        self.use_clip = config.use_clip
 
     def forward(self, batch, task, null_id=False):
         batch = defaultdict(lambda: None, batch)
@@ -42,25 +43,30 @@ class WhosWaldo(UniterPreTrainedModel):
         gt = batch['gt']
         num_bbs = batch['num_bbs']
 
+        if self.use_clip:
+            txt_feat = batch['txt_feat']
+        else:
+            txt_feat = None
+
         if task == 'matching':
             return self.forward_matching(input_ids, position_ids, img_feat, img_pos_feat,
                                          attention_mask, gather_index, targets,
-                                         ot_inputs, iden2token_pos)
+                                         ot_inputs, iden2token_pos, txt_feat=txt_feat)
         elif task == 'gt':
             return self.forward_gt(input_ids, position_ids, img_feat, img_pos_feat,
                                    attention_mask, gather_index,
-                                   ot_inputs, ids, iden2token_pos, gt, num_bbs, null_id)
+                                   ot_inputs, ids, iden2token_pos, gt, num_bbs, null_id, txt_feat=txt_feat)
         else:
             raise NotImplementedError('Undefined task for WhosWaldo model')
 
     def forward_matching(self, input_ids, position_ids, img_feat, img_pos_feat,
-                         attention_mask, gather_index, targets, ot_inputs, iden2token_pos):
+                         attention_mask, gather_index, targets, ot_inputs, iden2token_pos, txt_feat=None):
         """
         for 1-1 pairs
         """
         _, _, sigmoid_sim = self.forward_ot(
             input_ids, position_ids, img_feat, img_pos_feat, attention_mask,
-            gather_index, ot_inputs, iden2token_pos, use_null_id=False
+            gather_index, ot_inputs, iden2token_pos, use_null_id=False, txt_feat=txt_feat
         )
         sigmoid_sim = sigmoid_sim.reshape(sigmoid_sim.shape[0])
         matching_loss = F.binary_cross_entropy(sigmoid_sim, targets.float(), reduction='none')
@@ -68,14 +74,14 @@ class WhosWaldo(UniterPreTrainedModel):
         return matching_loss, matching_scores
 
     def forward_ot(self, input_ids, position_ids, img_feat, img_pos_feat,
-                   attention_mask, gather_index, ot_inputs, iden2token_pos, use_null_id=False):
+                   attention_mask, gather_index, ot_inputs, iden2token_pos, use_null_id=False, txt_feat=None):
         """
         compute similarity matrices
         """
         sequence_output = self.uniter(input_ids, position_ids,
                                       img_feat, img_pos_feat,
                                       attention_mask, gather_index,
-                                      output_all_encoded_layers=False)
+                                      output_all_encoded_layers=False, txt_feat=txt_feat)
 
         ot_scatter = ot_inputs['ot_scatter']
 
@@ -92,7 +98,7 @@ class WhosWaldo(UniterPreTrainedModel):
                                          src=sequence_output)
         txt_emb = ctx_emb[:, :tl, :]
         img_emb = ctx_emb[:, tl:tl + il, :]
-
+    
         img_pad = ot_inputs['img_pad']
 
         # trim txt_emb & txt_pad to only include [NAME] relevant tokens
@@ -128,11 +134,11 @@ class WhosWaldo(UniterPreTrainedModel):
         max_tl = max(txt_lens)
 
         txt_pad = _compute_pad(txt_lens, max_tl).cuda()
-
+        
         # NOTE: run in fp32 for stability
         T, _, C = optimal_transport_dist(txt_emb.float(), img_emb.float(),
                                          txt_pad, img_pad)
-
+        
         sim = 1-C
         sigmoid_sim = torch.sigmoid(sim)
         T = torch.transpose(T, 1, 2)
@@ -140,11 +146,11 @@ class WhosWaldo(UniterPreTrainedModel):
 
     def forward_gt(self, input_ids, position_ids, img_feat, img_pos_feat,
                    attention_mask, gather_index, ot_inputs,
-                   ids, iden2token_pos, gt, num_bbs, use_null_id=False):
+                   ids, iden2token_pos, gt, num_bbs, use_null_id=False, txt_feat=None):
 
         T, sim, sigmoid_sim = self.forward_ot(input_ids, position_ids, img_feat, img_pos_feat,
-                                          attention_mask, gather_index, ot_inputs, iden2token_pos, use_null_id)
-
+                                          attention_mask, gather_index, ot_inputs, iden2token_pos, use_null_id, txt_feat=txt_feat)
+    
         gt_id_targets = []
         gt_id_results = []
         gt_face_targets = []

@@ -42,6 +42,8 @@ def evaluate_gt(model, eval_loader, null_id, result_txt, html_correct, html_inco
     vis_cnt = 0
 
     for i, batch in enumerate(eval_loader):
+        # print(batch)
+        # exit(0)
         id = batch['id'][0]
         gt = batch['gt'][0]
         assert len(gt) > 0
@@ -113,14 +115,14 @@ def main(opts):
 
     visibility_set = None
     if opts.visibility != 'all':
-        visibility_set = read_txt(f"/work/vig/qianrul/tofindwaldo/dataset_meta/{opts.visibility}_img_ids.txt")
-    eval_gt_dataset = WhosWaldoDataset(eval_txt_db, eval_img_db, categories, 0, visibility_set)
+        visibility_set = read_txt(f"/work/vig/qianrul/tofindwaldo/dataset_meta/{opts.visibility}.txt")
+    eval_gt_dataset = WhosWaldoDataset(eval_txt_db, eval_img_db, categories, 0, visibility_set, use_clip=opts.use_clip)
 
     print(f'{len(eval_gt_dataset)} examples in dataset')
 
     # Prepare model
     if opts.use_pretrained:
-        ckpt_file = './storage/pretrain/uniter-base-pretrained.pt'
+        ckpt_file = './storage/pretrain/uniter-base.pt'
     else:
         ckpt_file = f'{model_dir}/ckpt/model_step_{opts.ckpt}.pt'
     checkpoint = torch.load(ckpt_file)
@@ -187,8 +189,10 @@ if __name__ == "__main__":
     parser.add_argument('--fp16', default=True,
                         help="fp16 inference")
     parser.add_argument("--visibility",
-                        type=str, default="all", choices=["seen", "unseen", "all", "no_verb", "all_seen", "all_unseen"],
+                        type=str, default="all", choices=["seen", "unseen", "all", "no_verb", "all_seen", "all_unseen", "test_srl_interactive", "test_srl", "custom"],
                         help="The visibility of the test set examples to evaluate on.")
+    parser.add_argument('--use_clip', default=False, type=bool,
+                        help='whether to use clip model')
     args = parser.parse_args()
 
     main(args)

@@ -47,8 +47,8 @@ def build_dataloader_itm(dataset, collate_fn, is_train, opts):
     return loader
 
 
-def build_whos_waldo_dataset(txt_db, img_db, category, neg_prob):
-    dataset = WhosWaldoDataset(txt_db, img_db, category, neg_prob)
+def build_whos_waldo_dataset(txt_db, img_db, category, neg_prob, use_clip=False):
+    dataset = WhosWaldoDataset(txt_db, img_db, category, neg_prob, use_clip=use_clip)
     collate_fn = whos_waldo_ot_collate
     return dataset, collate_fn
 
@@ -69,9 +69,9 @@ def create_dataloaders(datasets, is_train, opts, all_img_dbs=None):
             txt_db = TxtTokLmdb(dset['db'], opts.max_txt_len)
 
             if task.startswith('matching'):
-                dataset = build_whos_waldo_dataset(txt_db, img_db, ['one-to-one'], opts.itm_neg_prob)
+                dataset = build_whos_waldo_dataset(txt_db, img_db, ['one-to-one'], opts.itm_neg_prob, use_clip=opts.use_clip)
             elif task.startswith('gt'):
-                dataset = build_whos_waldo_dataset(txt_db, img_db, ['interactive', 'other'], 0)
+                dataset = build_whos_waldo_dataset(txt_db, img_db, ['interactive', 'other'], 0, use_clip=opts.use_clip)
             else:
                 raise ValueError(f'Undefined task {task}')
 
@@ -461,6 +461,8 @@ if __name__ == "__main__":
                         help='min number of bounding boxes')
     parser.add_argument('--num_bb', type=int, default=36,
                         help='static number of bounding boxes')
+    parser.add_argument('--use_clip', default=False, type=bool,
+                        help='whether to use clip model')
 
     # training parameters
     parser.add_argument("--train_batch_size", default=4096, type=int,

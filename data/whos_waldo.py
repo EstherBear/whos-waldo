@@ -36,13 +36,14 @@ class TokenBucketSamplerForItm(TokenBucketSampler):
 
 
 class WhosWaldoDataset(DetectFeatTxtTokDataset):
-    def __init__(self, txt_db, img_db, category, neg_sample_p=0.5, visibility_set=None):
+    def __init__(self, txt_db, img_db, category, neg_sample_p=0.5, visibility_set=None, use_clip=False):
         assert isinstance(txt_db, TxtTokLmdb)
         assert isinstance(img_db, DetectFeatLmdb)
 
         self.txt_db = txt_db
         self.img_db = img_db
         self.category = category
+        self.use_clip = use_clip
 
         self.txt_lens, self.ids = get_ids_and_lens(txt_db)
         id2category = self.txt_db.id2category
@@ -98,12 +99,22 @@ class WhosWaldoDataset(DetectFeatTxtTokDataset):
 
         # text input
         input_ids = example['input_ids']  # use text from original example
-        input_ids = self.txt_db.combine_inputs(input_ids)
+        # print(input_ids)
+        if not self.use_clip:
+            input_ids = self.txt_db.combine_inputs(input_ids)
+            input_ids_len = len(input_ids)
+        else:
+            input_ids = torch.tensor(input_ids)
+            input_ids_len = input_ids.argmax().item() + 1
+        # print('txt_lens\n', input_ids_len)
+        # print('num_bbs\n', img_feat.size(0))
+        # print(input_ids)
 
-        attn_masks = torch.ones(len(input_ids) + num_bb, dtype=torch.long)
+        attn_masks = torch.ones(input_ids_len + num_bb, dtype=torch.long)
         target = torch.Tensor(1).long()
         target.data.fill_(ground_truth_label)
-
+        if self.use_clip:
+            return (input_ids, example['txt_feat']), img_feat, img_pos_feat, attn_masks, target, example['id'], img_neg_id, example['iden2token_pos'], example['gt']
         return input_ids, img_feat, img_pos_feat, attn_masks, target, example['id'], img_neg_id, example['iden2token_pos'], example['gt']
 
 
@@ -125,10 +136,21 @@ def _compute_pad(lens, max_len):
 
 
 def whos_waldo_ot_collate(inputs):
+    use_clip = False
     (input_ids, img_feats, img_pos_feats, attn_masks, targets, id, img_neg_id, iden2token_pos, gt
      ) = map(list, unzip(inputs))
-
-    txt_lens = [i.size(0) for i in input_ids]
+    if len(input_ids[0]) == 2 and input_ids[0][1].ndim == 2:
+        use_clip = True
+        input_ids, txt_feats = zip(*input_ids)
+        input_ids, txt_feats = list(input_ids), list(txt_feats)
+        # print(input_ids[0])
+        # print(txt_feats[0])
+        # print(len(input_ids))
+        # print(len(txt_feats))
+    if use_clip:
+        txt_lens = [i.argmax().item() + 1 for i in input_ids]
+    else:
+        txt_lens = [i.size(0) for i in input_ids]
 
     input_ids = pad_sequence(input_ids, batch_first=True, padding_value=0)
     position_ids = torch.arange(0, input_ids.size(1), dtype=torch.long
@@ -145,7 +167,10 @@ def whos_waldo_ot_collate(inputs):
     gather_index = get_gather_index(txt_lens, num_bbs, bs, max_tl, out_size)
 
     # OT inputs
-    max_tl = max(txt_lens)
+    if use_clip:
+        max_tl = 77
+    else:
+        max_tl = max(txt_lens)
     max_nbb = max(num_bbs)
     ot_scatter = _compute_ot_scatter(txt_lens, max_tl, attn_masks.size(1))
     txt_pad = _compute_pad(txt_lens, max_tl)
@@ -154,8 +179,10 @@ def whos_waldo_ot_collate(inputs):
                  'scatter_max': ot_scatter.max().item(),
                  'txt_pad': txt_pad,
                  'img_pad': img_pad}
-
-    batch = {'input_ids': input_ids,
+    
+    if use_clip:
+        txt_feat = torch.stack([torch.tensor(f) for f in txt_feats])
+        batch = {'input_ids': input_ids,
              'position_ids': position_ids,
              'img_feat': img_feat,
              'img_pos_feat': img_pos_feat,
@@ -167,7 +194,22 @@ def whos_waldo_ot_collate(inputs):
              'img_neg_id': img_neg_id,
              'iden2token_pos': iden2token_pos,
              'gt': gt,
-             'num_bbs': num_bbs}
+             'num_bbs': num_bbs,
+             'txt_feat': txt_feat}
+    else:
+        batch = {'input_ids': input_ids,
+                'position_ids': position_ids,
+                'img_feat': img_feat,
+                'img_pos_feat': img_pos_feat,
+                'attn_masks': attn_masks,
+                'gather_index': gather_index,
+                'targets': targets,
+                'ot_inputs': ot_inputs,
+                'id': id,
+                'img_neg_id': img_neg_id,
+                'iden2token_pos': iden2token_pos,
+                'gt': gt,
+                'num_bbs': num_bbs}
     return batch
 
 

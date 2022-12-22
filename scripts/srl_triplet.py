@@ -27,11 +27,18 @@ def get_ing(verb: str) -> str:
             return verb_form
     return verb
 
+def get_ed(verb: str) -> str:
+    verb_forms = get_word_forms(verb)['v']
+    for verb_form in verb_forms:
+        if verb_form[-2:] == 'ed':
+            return verb_form
+    return verb
+
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
 
 # triplet: ([sub_id], verb, [obj_id])
-for split in ['val', 'test', 'train']:
+for split in ['test', 'val', 'train']:
     ids = read_txt(os.path.join(splits_dir, f'{split}.txt'))
     input_split_dir = os.path.join(input_dir, split)
     output_path = os.path.join(output_dir, split)
@@ -56,7 +63,10 @@ for split in ['val', 'test', 'train']:
                                 obj.append(coref_id)
                 if len(sub) == 0 and len(obj) == 0:
                     continue
-                triplets.append(([*set(sub)], get_ing(verb), [*set(obj)]))
+                if len(sub) == 0 and len(obj) > 0:
+                    triplets.append(([*set(sub)], get_ed(verb), [*set(obj)]))
+                else:    
+                    triplets.append(([*set(sub)], get_ing(verb), [*set(obj)]))
         srl['triplets'] = triplets
         output_file = os.path.join(output_path, f'{id}.json')
         with open(output_file, "w") as f:

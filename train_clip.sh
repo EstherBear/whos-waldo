@@ -1,0 +1,1 @@
+HOROVOD_CACHE_CAPACITY=4096 python train.py --config /work/vig/qianrul/tofindwaldo/config/train-whos-waldo-new-finetune-clip.json
